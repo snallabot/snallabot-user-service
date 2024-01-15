@@ -50,4 +50,17 @@ describe("GET /retrievePersonas", () => {
                 ])
             })
     })
+    test("it should handle fetching code errors", async () => {
+        // it would be ideal to test every fetch, in reality the first one will probably fail first 
+        jest.spyOn(global, "fetch").mockImplementation((url: any) => {
+            const mockResponse = (value: any) => (Promise.resolve({ ok: false, status: 500, json: async () => value } as Response))
+            return mockResponse({ "error": "invalid_request", "error_description": "code is not issued to this environment", "code": 100119 })
+        })
+        return request(app.callback())
+            .post("/retrievePersonas")
+            .send({ code: "code1234" })
+            .set('Content-Type', 'application/json')
+            .set('Accept', 'application/json')
+            .expect(500)
+    })
 })
