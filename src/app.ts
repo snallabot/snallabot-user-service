@@ -8,6 +8,7 @@ const app = new Koa()
 const router = new Router()
 
 
+
 router.get("/login", (ctx) => {
     ctx.body = { url: EA_LOGIN_URL }
 }).post("/retrievePersonas", async (ctx, next) => {
@@ -25,7 +26,7 @@ router.get("/login", (ctx) => {
     })
     if (!response.ok) {
         const errorResponse = await response.text()
-        new Error(`Failed to use login code: ${errorResponse}`)
+        throw new Error(`Failed to use login code: ${errorResponse}`)
     }
     const { access_token } = (await response.json()) as AccountToken
 
@@ -43,7 +44,7 @@ router.get("/login", (ctx) => {
     )
     if (!pidResponse.ok) {
         const errorResponse = await response.text()
-        new Error(`Failed to retrieve account information: ${errorResponse}`)
+        throw new Error(`Failed to retrieve account information: ${errorResponse}`)
     }
     const { pid_id: pid } = (await pidResponse.json()) as TokenInfo
     const pidUriResponse = await fetch(
@@ -61,7 +62,7 @@ router.get("/login", (ctx) => {
     )
     if (!pidUriResponse.ok) {
         const errorResponse = await response.text()
-        new Error(`Failed to retrieve madden entitlements: ${errorResponse}`)
+        throw new Error(`Failed to retrieve madden entitlements: ${errorResponse}`)
     }
     const { entitlements: { entitlement: userEntitlements } } = (await pidUriResponse.json()) as Entitlements
     const validEntitlements = userEntitlements.filter(e => e.entitlementTag === "ONLINE_ACCESS" && Object.values(VALID_ENTITLEMENTS).includes(e.groupName))
@@ -84,17 +85,25 @@ router.get("/login", (ctx) => {
     )
     if (!personasResponse.ok) {
         const errorResponse = await response.text()
-        new Error(`Failed to retrieve madden persona accounts: ${errorResponse}`)
+        throw new Error(`Failed to retrieve madden persona accounts: ${errorResponse}`)
     }
     const { personas: { persona: userEaPersonas } } = (await personasResponse.json()) as Personas
     ctx.body = { personas: userEaPersonas, access_token, system_console: systemConsole }
     await next()
 })
 
-app.use(bodyParser())
-
-
-app.use(router.routes())
+app.use(bodyParser({ enableTypes: ["json"], encoding: "utf-8" }))
+    .use(async (ctx, next) => {
+        try {
+            await next()
+        } catch (err: any) {
+            ctx.status = 500;
+            ctx.body = {
+                message: err.message
+            };
+        }
+    })
+    .use(router.routes())
     .use(router.allowedMethods())
 
 export default app
