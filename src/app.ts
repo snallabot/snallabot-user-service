@@ -10,7 +10,7 @@ const router = new Router()
 
 router.get("/login", (ctx) => {
     ctx.body = { url: EA_LOGIN_URL }
-}).get("/retrievePersonas", async (ctx) => {
+}).post("/retrievePersonas", async (ctx, next) => {
     const { code }: { code: string } = ctx.request.body
     const response = await fetch("https://accounts.ea.com/connect/token", {
         method: "POST",
@@ -88,10 +88,13 @@ router.get("/login", (ctx) => {
     }
     const { personas: { persona: userEaPersonas } } = (await personasResponse.json()) as Personas
     ctx.body = { personas: userEaPersonas, access_token, system_console: systemConsole }
+    await next()
 })
 
 app.use(bodyParser())
-    .use(router.routes())
+
+
+app.use(router.routes())
     .use(router.allowedMethods())
 
 export default app
