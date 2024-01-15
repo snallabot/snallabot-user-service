@@ -1,24 +1,17 @@
-import express, { Express, Request, Response, NextFunction } from "express";
+import Koa from "koa"
+import Router from "@koa/router"
+import bodyParser from "@koa/bodyparser"
 import { EA_LOGIN_URL, AUTH_SOURCE, CLIENT_SECRET, REDIRECT_URL, CLIENT_ID, VALID_ENTITLEMENTS } from "./constants"
 import { AccountToken, TokenInfo, Entitlements, Personas } from "./ea_types"
 
-const app: Express = express();
-const port = process.env.PORT || 3000;
+const app = new Koa()
+const router = new Router()
 
-app.use(express.json({ limit: "10mb", type: "*/*" }))
 
-app.use((err: any, req: Request, res: Response, next: NextFunction) => {
-    res.status(500).send({
-        error: err.message
-    })
-})
-
-app.get("/login", (req, res) => {
-    res.status(200).json({ url: EA_LOGIN_URL })
-})
-
-app.get("/retrievePersonas", async (req, res, next) => {
-    const { code }: { code: string } = req.body;
+router.get("/login", (ctx) => {
+    ctx.body = { url: EA_LOGIN_URL }
+}).get("/retrievePersonas", async (ctx) => {
+    const { code }: { code: string } = ctx.request.body
     const response = await fetch("https://accounts.ea.com/connect/token", {
         method: "POST",
         headers: {
@@ -94,9 +87,11 @@ app.get("/retrievePersonas", async (req, res, next) => {
         new Error(`Failed to retrieve madden persona accounts: ${errorResponse}`)
     }
     const { personas: { persona: userEaPersonas } } = (await personasResponse.json()) as Personas
-    res.status(200).send({ personas: userEaPersonas, access_token, system_console: systemConsole })
+    ctx.body = { personas: userEaPersonas, access_token, system_console: systemConsole }
 })
 
-app.listen(port, () => {
-    console.log(`server started on ${port}`);
-});
+app.use(bodyParser())
+    .use(router.routes())
+    .use(router.allowedMethods())
+
+export default app
