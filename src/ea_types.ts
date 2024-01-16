@@ -1,3 +1,4 @@
+
 /*
   I want to document the response types from EA. Some of these should be more narrowly defined, but I do not know what all the enumerations are. I welcome in the future if we find more values that we change these to be narrower so we can safely rely on the values better
 */
