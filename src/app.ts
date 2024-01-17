@@ -1,15 +1,15 @@
 import Koa from "koa"
 import Router from "@koa/router"
 import bodyParser from "@koa/bodyparser"
-import { EA_LOGIN_URL, AUTH_SOURCE, CLIENT_SECRET, REDIRECT_URL, CLIENT_ID, VALID_ENTITLEMENTS, ENTITLEMENT_TO_SYSTEM, MACHINE_KEY } from "./constants"
+import { EA_LOGIN_URL, AUTH_SOURCE, CLIENT_SECRET, REDIRECT_URL, CLIENT_ID, VALID_ENTITLEMENTS, MACHINE_KEY } from "./constants"
 import { AccountToken, TokenInfo, Entitlements, Personas, Persona } from "./ea_types"
-import { randomUUID } from "crypto"
+import UserDB from "./user_db"
 
 const app = new Koa()
 const router = new Router()
 
 type RetrievePersonasRequest = { code: string }
-type LinkPersona = { persona: Persona, access_token: string, systemConsole: string }}
+type LinkPersona = { persona: Persona, access_token: string, systemConsole: string }
 
 router.get("/login", (ctx) => {
     ctx.body = { url: EA_LOGIN_URL }
@@ -94,7 +94,6 @@ router.get("/login", (ctx) => {
     await next()
 }).post("/linkPersona", async (ctx, next) => {
     const { persona, access_token, systemConsole } = ctx.request.body as LinkPersona
-    const consoleAbbr = ENTITLEMENT_TO_SYSTEM[systemConsole]
     const locationUrlResponse = await fetch(`https://accounts.ea.com/connect/auth?hide_create=true&release_type=prod&response_type=code&redirect_uri=${REDIRECT_URL}&client_id=${CLIENT_ID}&machineProfileKey=${MACHINE_KEY}&authentication_source=${AUTH_SOURCE}&access_token=${access_token}&persona_id=${persona.personaId}&persona_namespace=${persona.namespaceName}`, {
         redirect: "manual", // this fetch resolves to localhost address with a code as a query string. if we follow the redirect, it won't be able to connect. Just take the location from the manual redirect
         headers: {
@@ -129,25 +128,20 @@ router.get("/login", (ctx) => {
             "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
             "Accept-Encoding": "gzip",
         },
-        body: `authentication_source=${AUTH_SOURCE}&code=${eaCode}&grant_type=authorization_code&token_format=JWS&release_type=prod&client_secret=${CLIENT_SECRET}}&redirect_uri=${REDIRECT_URL}&client_id=`,
+        body: `authentication_source=${AUTH_SOURCE}&code=${eaCode}&grant_type=authorization_code&token_format=JWS&release_type=prod&client_secret=${CLIENT_SECRET}}&redirect_uri=${REDIRECT_URL}&client_id=${CLIENT_ID}`,
     })
     if (!newAccessTokenResponse.ok) {
         const errorResponse = await newAccessTokenResponse.text()
         throw new Error(`Failed to create access token: ${errorResponse}`)
     }
-    const {
-        access_token: accessToken,
-        refresh_token: refreshToken,
-        expires_in: expiresIn,
-    } = (await newAccessTokenResponse.json()) as AccountToken
-
-    // create client id
-    const session_id = randomUUID()
-
-
-    // DB save
-    // return client id
-
+    const token = (await newAccessTokenResponse.json()) as AccountToken
+    await UserDB.savePersona(persona, systemConsole)
+    const sessionId = await UserDB.saveSession(persona, token)
+    ctx.body = {
+        sessionId: sessionId,
+        persona: persona
+    }
+    await next()
 })
 
 app.use(bodyParser({ enableTypes: ["json"], encoding: "utf-8" }))
