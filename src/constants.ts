@@ -17,6 +17,15 @@ export const VALID_ENTITLEMENTS = ((a: string) => ({
     stadia: `MADDEN_${a}SDA`,
 }))(TWO_DIGIT_YEAR)
 
+export const ENTITLEMENT_TO_SYSTEM = ((a) => ({
+    [`MADDEN_${a}XONE`]: "xone",
+    [`MADDEN_${a}PS4`]: "ps4",
+    [`MADDEN_${a}PC`]: "pc",
+    [`MADDEN_${a}PS5`]: "ps5",
+    [`MADDEN_${a}XBSX`]: "xbsx",
+    [`MADDEN_${a}SDA`]: "stadia",
+}))(TWO_DIGIT_YEAR)
+
 export const SYSTEM_MAP = (a: string) => ({
     xone: `MADDEN_${a}_XONE_BLZ_SERVER`,
     ps4: `MADDEN_${a}_PS4_BLZ_SERVER`,
