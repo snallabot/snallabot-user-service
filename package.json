@@ -7,7 +7,7 @@
     "test": "npx jest",
     "build": "npx tsc",
     "start": "node dist/server.js",
-    "dev": "npx firebase emulators:start & FIRESTORE_EMULATOR_HOST=localhost:8080 nodemon src/server.ts && kill $!"
+      "dev": "npx firebase --project dev emulators:start & FIRESTORE_EMULATOR_HOST=localhost:8080 nodemon src/server.ts && kill $!"
   },
   "repository": {
     "type": "git",
