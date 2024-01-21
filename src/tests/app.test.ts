@@ -6,9 +6,9 @@ jest.mock("../user_db", () => ({
     __esModule: true,
     default: jest.fn(() => ({
         savePersona: jest.fn(),
-        retrievePersona: jest.fn(),
+        retrievePersona: jest.fn().mockImplementation(() => Promise.resolve({ name: "testName2", namespaceName: "ps3", personaId: 1234, systemConsole: "ps5" })),
         createSession: jest.fn().mockImplementation(() => "sessionId123"),
-        retrieveSession: jest.fn()
+        retrieveSession: jest.fn().mockImplementation(() => Promise.resolve({ access_token: "access_token2_123", refresh_token: "refresh_token:123", expires_in: 5, id_token: null, token_type: "Bearer", created_date: new Date(), last_accessed: new Date(), personaId: 1234 }))
 
     })),
 }));
@@ -43,7 +43,7 @@ function mockFetch(mockedFetches: any) {
     })
 }
 
-describe("GET /retrievePersonas", () => {
+describe("POST /retrievePersonas", () => {
     test("it should return correct personas", async () => {
         mockFetch(
             {
@@ -88,23 +88,57 @@ describe("GET /retrievePersonas", () => {
     })
 })
 
-describe("GET /createPersonaSession", () => {
+describe("POST /createPersonaSession", () => {
     test("it should properly create persona session", async () => {
         mockFetch(
             {
-                "https://accounts.ea.com/connect/auth?hide_create=true&release_type=prod&response_type=code&redirect_uri=http://127.0.0.1/success&client_id=MaddenCompanionApp19&machineProfileKey=MCA4b35d75Vm-MCA&authentication_source=317239&access_token=access_token123&persona_id=persona123&persona_namespace=ps3": () => Promise.resolve({ ok: true, status: 302, headers: { get: (loc: string) => "http://127.0.0.1/success?code=eacode2" } } as Response),
+                "https://accounts.ea.com/connect/auth?hide_create=true&release_type=prod&response_type=code&redirect_uri=http://127.0.0.1/success&client_id=MaddenCompanionApp19&machineProfileKey=MCA4b35d75Vm-MCA&authentication_source=317239&access_token=access_token123&persona_id=1234&persona_namespace=ps3": () => Promise.resolve({ ok: true, status: 302, headers: { get: (loc: string) => "http://127.0.0.1/success?code=eacode2" } } as Response),
                 "https://accounts.ea.com/connect/token": { access_token: "access_token2_123", refresh_token: "refresh_token:123", expires_in: 5, id_token: null, token_type: "Bearer" },
             }
         )
         return request(app.callback())
             .post("/createPersonaSession")
-            .send({ persona: { name: "testName2", namespaceName: "ps3", personaId: "persona123" }, access_token: "access_token123", system_console: "ps5" })
+            .send({ persona: { name: "testName2", namespaceName: "ps3", personaId: 1234 }, access_token: "access_token123", system_console: "ps5" })
             .set('Content-Type', 'application/json')
             .set('Accept', 'application/json')
             .expect(200)
             .then(({ body }) => {
                 expect(body.sessionId).toBe("sessionId123")
-                expect(body.persona).toStrictEqual({ name: "testName2", namespaceName: "ps3", personaId: "persona123" })
+                expect(body.persona).toStrictEqual({ name: "testName2", namespaceName: "ps3", personaId: 1234 })
             })
+    })
+})
+
+describe("POST /retrievePersonaInformation", () => {
+    test("it should properly retrieve saved persona from session", async () => {
+        return request(app.callback())
+            .post("/retrievePersonaInformation")
+            .send({ session_id: "sessionId123" })
+            .set('Content-Type', 'application/json')
+            .set('Accept', 'application/json')
+            .expect(200)
+            .then(({ body }) => {
+                expect(body).toStrictEqual({ name: "testName2", namespaceName: "ps3", personaId: 1234, systemConsole: "ps5" })
+            })
+    })
+
+    test("it should properly retrieve saved persona from persona id", async () => {
+        return request(app.callback())
+            .post("/retrievePersonaInformation")
+            .send({ persona_id: 1234 })
+            .set('Content-Type', 'application/json')
+            .set('Accept', 'application/json')
+            .expect(200)
+            .then(({ body }) => {
+                expect(body).toStrictEqual({ name: "testName2", namespaceName: "ps3", personaId: 1234, systemConsole: "ps5" })
+            })
+    })
+    test("it should error when wrong request occurss", async () => {
+        return request(app.callback())
+            .post("/retrievePersonaInformation")
+            .send({})
+            .set('Content-Type', 'application/json')
+            .set('Accept', 'application/json')
+            .expect(500)
     })
 })
