@@ -3,7 +3,7 @@ import { initializeApp, cert } from "firebase-admin/app"
 import { getFirestore } from "firebase-admin/firestore"
 import { randomUUID } from "crypto"
 
-type SessionToken = AccountToken & { created_date: Date, last_accessed: Date, personaId: string }
+type SessionToken = AccountToken & { created_date: Date, last_accessed: Date, personaId: number }
 type SavedPersona = Persona & { systemConsole: SystemConsole }
 type SessionId = string
 

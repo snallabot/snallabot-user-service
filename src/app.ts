@@ -11,7 +11,7 @@ const UserDB = getUserDB()
 
 type RetrievePersonasRequest = { code: string }
 type LinkPersona = { persona: Persona, access_token: string, system_console: SystemConsole }
-
+type RetrievePersonaInformationRequest = { persona_id: number | undefined, session_id: string | undefined }
 router.get("/login", (ctx) => {
     ctx.body = { url: EA_LOGIN_URL }
 }).post("/retrievePersonas", async (ctx, next) => {
@@ -142,12 +142,31 @@ router.get("/login", (ctx) => {
     }
     const token = (await newAccessTokenResponse.json()) as AccountToken
     await UserDB.savePersona(persona, system_console)
-    console.log("here")
     const sessionId = await UserDB.createSession(persona, token)
     ctx.body = {
         sessionId: sessionId,
         persona: persona
     }
+    await next()
+}).post("/retrievePersonaInformation", async (ctx, next) => {
+    const retrievePersonaReq = ctx.request.body as RetrievePersonaInformationRequest
+    let personaId;
+    if (retrievePersonaReq.session_id) {
+        const session = await UserDB.retrieveSession(retrievePersonaReq.session_id)
+        if (!session) {
+            throw new Error(`Invalid ${retrievePersonaReq.session_id}`)
+        }
+        personaId = session.personaId
+    } else if (retrievePersonaReq.persona_id) {
+        personaId = retrievePersonaReq.persona_id
+    } else {
+        throw new Error("Need to provide either session_id or persona_id")
+    }
+    const persona = await UserDB.retrievePersona(personaId)
+    if (!persona) {
+        throw new Error(`Could not find persona ${personaId}`)
+    }
+    ctx.body = persona
     await next()
 })
 
