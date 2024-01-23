@@ -3,6 +3,7 @@ import Router from "@koa/router"
 import bodyParser from "@koa/bodyparser"
 import { EA_LOGIN_URL, AUTH_SOURCE, CLIENT_SECRET, REDIRECT_URL, CLIENT_ID, VALID_ENTITLEMENTS, ENTITLEMENT_TO_SYSTEM, MACHINE_KEY } from "./constants"
 import { AccountToken, TokenInfo, Entitlements, Personas, Persona, SystemConsole } from "./ea_types"
+import { EAAccountError, InvalidRequestError, UserDBError } from "./request_errors"
 import getUserDB from "./user_db"
 
 const app = new Koa()
@@ -12,6 +13,7 @@ const UserDB = getUserDB()
 type RetrievePersonasRequest = { code: string }
 type LinkPersona = { persona: Persona, access_token: string, system_console: SystemConsole }
 type RetrievePersonaInformationRequest = { persona_id: number | undefined, session_id: string | undefined }
+
 router.get("/login", (ctx) => {
     ctx.body = { url: EA_LOGIN_URL }
 }).post("/retrievePersonas", async (ctx, next) => {
@@ -29,7 +31,7 @@ router.get("/login", (ctx) => {
     })
     if (!response.ok) {
         const errorResponse = await response.text()
-        throw new Error(`Failed to use login code: ${errorResponse}`)
+        throw new EAAccountError(`Failed to use login code: ${errorResponse}`)
     }
     const { access_token } = (await response.json()) as AccountToken
 
@@ -47,7 +49,7 @@ router.get("/login", (ctx) => {
     )
     if (!pidResponse.ok) {
         const errorResponse = await response.text()
-        throw new Error(`Failed to retrieve account information: ${errorResponse}`)
+        throw new EAAccountError(`Failed to retrieve account information: ${errorResponse}`)
     }
     const { pid_id: pid } = (await pidResponse.json()) as TokenInfo
     const pidUriResponse = await fetch(
@@ -65,12 +67,12 @@ router.get("/login", (ctx) => {
     )
     if (!pidUriResponse.ok) {
         const errorResponse = await response.text()
-        throw new Error(`Failed to retrieve madden entitlements: ${errorResponse}`)
+        throw new EAAccountError(`Failed to retrieve madden entitlements: ${errorResponse}`)
     }
     const { entitlements: { entitlement: userEntitlements } } = (await pidUriResponse.json()) as Entitlements
     const validEntitlements = userEntitlements.filter(e => e.entitlementTag === "ONLINE_ACCESS" && Object.values(VALID_ENTITLEMENTS).includes(e.groupName))
     if (validEntitlements.length === 0) {
-        throw new Error("User cannot access this version of Madden!")
+        throw new EAAccountError("User cannot access this version of Madden!")
     }
     // is this actually the right choice?
     const { pidUri, groupName: maddenEntitlement } = validEntitlements[0]
@@ -88,7 +90,7 @@ router.get("/login", (ctx) => {
     )
     if (!personasResponse.ok) {
         const errorResponse = await response.text()
-        throw new Error(`Failed to retrieve madden persona accounts: ${errorResponse}`)
+        throw new EAAccountError(`Failed to retrieve madden persona accounts: ${errorResponse}`)
     }
     const { personas: { persona: userEaPersonas } } = (await personasResponse.json()) as Personas
     ctx.body = { personas: userEaPersonas, access_token, system_console: ENTITLEMENT_TO_SYSTEM[maddenEntitlement] }
@@ -116,13 +118,13 @@ router.get("/login", (ctx) => {
 
     const locationUrl = locationUrlResponse.headers.get("Location")
     if (!locationUrl) {
-        throw new Error("Tried to retrieve location of access token but failed!")
+        throw new EAAccountError("Tried to retrieve location of access token but failed!")
     }
 
     const eaCode = new URLSearchParams(locationUrl.replace(REDIRECT_URL, "")).get("code")
     if (!eaCode) {
         console.error(`Could not retrieve code from ${locationUrl}`)
-        throw new Error("Tried to retrieve new access token but failed!")
+        throw new EAAccountError("Tried to retrieve new access token but failed!")
     }
     const newAccessTokenResponse = await fetch(`https://accounts.ea.com/connect/token`, {
         method: "POST",
@@ -138,7 +140,7 @@ router.get("/login", (ctx) => {
     if (!newAccessTokenResponse.ok) {
         const errorResponse = await newAccessTokenResponse.text()
 
-        throw new Error(`Failed to create access token: ${errorResponse}`)
+        throw new EAAccountError(`Failed to create access token: ${errorResponse}`)
     }
     const token = (await newAccessTokenResponse.json()) as AccountToken
     await UserDB.savePersona(persona, system_console)
@@ -153,19 +155,13 @@ router.get("/login", (ctx) => {
     let personaId;
     if (retrievePersonaReq.session_id) {
         const session = await UserDB.retrieveSession(retrievePersonaReq.session_id)
-        if (!session) {
-            throw new Error(`Invalid ${retrievePersonaReq.session_id}`)
-        }
         personaId = session.personaId
     } else if (retrievePersonaReq.persona_id) {
         personaId = retrievePersonaReq.persona_id
     } else {
-        throw new Error("Need to provide either session_id or persona_id")
+        throw new InvalidRequestError("Need to provide either session_id or persona_id")
     }
     const persona = await UserDB.retrievePersona(personaId)
-    if (!persona) {
-        throw new Error(`Could not find persona ${personaId}`)
-    }
     ctx.body = persona
     await next()
 })
@@ -175,6 +171,18 @@ app.use(bodyParser({ enableTypes: ["json"], encoding: "utf-8" }))
         try {
             await next()
         } catch (err: any) {
+            if (err instanceof UserDBError || err instanceof InvalidRequestError) {
+                ctx.status = 400;
+                ctx.body = {
+                    message: err.message
+                }
+            } else if (err instanceof EAAccountError) {
+                console.error(err.message)
+                ctx.status = 500
+                ctx.body = {
+                    message: `EA Error: ${err.message}`
+                }
+            }
             ctx.status = 500;
             ctx.body = {
                 message: err.message
