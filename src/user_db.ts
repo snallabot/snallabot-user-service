@@ -2,16 +2,17 @@ import { Persona, AccountToken, SystemConsole } from "./ea_types"
 import { initializeApp, cert } from "firebase-admin/app"
 import { getFirestore } from "firebase-admin/firestore"
 import { randomUUID } from "crypto"
+import { UserDBError } from "./request_errors"
 
-type SessionToken = AccountToken & { created_date: Date, last_accessed: Date, personaId: number }
-type SavedPersona = Persona & { systemConsole: SystemConsole }
-type SessionId = string
+export type SessionToken = AccountToken & { created_date: Date, last_accessed: Date, personaId: number }
+export type SavedPersona = Persona & { systemConsole: SystemConsole }
+export type SessionId = string
 
 interface UserDB {
     savePersona(persona: Persona, systemConsole: SystemConsole): Promise<void>;
-    retrievePersona(personaId: number): Promise<SavedPersona | undefined>;
+    retrievePersona(personaId: number): Promise<SavedPersona>;
     createSession(persona: Persona, token: AccountToken): Promise<SessionId>;
-    retrieveSession(sessionId: SessionId): Promise<SessionToken | undefined>;
+    retrieveSession(sessionId: SessionId): Promise<SessionToken>;
 }
 
 function setupFirebase() {
@@ -44,7 +45,11 @@ const FirebaseUserDB: () => UserDB = () => {
         },
         retrievePersona: async function(personaId: number) {
             const doc = await db.collection("personas").doc(`${personaId}`).get()
-            return doc.data() as SavedPersona | undefined
+            const data = doc.data()
+            if (!data) {
+                throw new UserDBError(`Invalid Persona ${personaId}, missing from database. Is this user registered?`)
+            }
+            return doc.data() as SavedPersona
         },
         createSession: async function(persona: Persona, token: AccountToken) {
             const sessionId = randomUUID()
@@ -55,7 +60,11 @@ const FirebaseUserDB: () => UserDB = () => {
         },
         retrieveSession: async function(sessionId: string) {
             const doc = await db.collection("sessions").doc(sessionId).get()
-            return doc.data() as SessionToken | undefined
+            const data = doc.data()
+            if (!data) {
+                throw new UserDBError(`Invalid Session ${sessionId}, missing from database. Create a new session id?`)
+            }
+            return doc.data() as SessionToken
         }
     }
 }
