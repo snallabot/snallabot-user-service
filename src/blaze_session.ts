@@ -27,8 +27,7 @@ async function refreshToken(sessionId: SessionId): Promise<SessionToken> {
         body: `grant_type=refresh_token&client_id=${CLIENT_ID}&client_secret=${CLIENT_SECRET}&release_type=prod&refresh_token=${lastSession.refresh_token}&authentication_source=${AUTH_SOURCE}&token_format=JWS`,
     })
     const refreshedAccountToken = (await refreshResponse.json()) as AccountToken
-    const newSession = { ...lastSession, ...refreshedAccountToken }
-    return newSession
+    return await UserDB.updateSession(sessionId, refreshedAccountToken)
 }
 
 async function refreshBlazeSession(sessionId: SessionId): Promise<BlazeSessionInformation> {

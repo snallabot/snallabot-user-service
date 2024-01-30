@@ -6,6 +6,8 @@ import { UserDBError } from "./request_errors"
 
 export type SessionToken = AccountToken & { created_date: Date, last_accessed: Date, personaId: number }
 export type SavedPersona = Persona & { systemConsole: SystemConsole }
+export type BlazeSession = { sessionKey: string, blazeId: string }
+export type StoredBlazeSession = BlazeSession & { created_date: Date }
 export type SessionId = string
 
 interface UserDB {
@@ -13,6 +15,10 @@ interface UserDB {
     retrievePersona(personaId: number): Promise<SavedPersona>;
     createSession(persona: Persona, token: AccountToken): Promise<SessionId>;
     retrieveSession(sessionId: SessionId): Promise<SessionToken>;
+    updateSession(sessionId: SessionId, token: AccountToken): Promise<SessionToken>;
+    clearBlazeSession(sessionId: SessionId): Promise<void>;
+    saveBlazeSession(sessionId: SessionId, session: BlazeSession): Promise<StoredBlazeSession>;
+    retrieveBlazeSession(sessionId: SessionId): Promise<StoredBlazeSession | undefined>;
 }
 
 function setupFirebase() {
@@ -64,7 +70,32 @@ const FirebaseUserDB: () => UserDB = () => {
             if (!data) {
                 throw new UserDBError(`Invalid Session ${sessionId}, missing from database. Create a new session id?`)
             }
-            return doc.data() as SessionToken
+            return data as SessionToken
+        },
+        updateSession: async function(sessionId: string, refreshedToken: AccountToken) {
+            const doc = db.collection("sessions").doc(sessionId)
+            const retrievedDoc = await doc.get()
+            const data = retrievedDoc.data()
+            if (!data) {
+                throw new UserDBError(`Invalid Session ${sessionId} missing from database. Create a new session with this user`)
+            }
+            const lastSession = data as SessionToken
+            const newSession = { ...lastSession, ...refreshedToken, last_accessed: new Date() }
+            doc.set(newSession)
+            return newSession
+        },
+        clearBlazeSession: async function(sessionId: string) {
+            await db.collection("blaze_sessions").doc(sessionId).delete()
+        },
+        saveBlazeSession: async function(sessionId: string, session: BlazeSession) {
+            const doc = db.collection("blaze_sessions").doc(sessionId)
+            const storedSession = { ...session, created_date: new Date() }
+            doc.set(storedSession)
+            return storedSession
+        },
+        retrieveBlazeSession: async function(sessionId: string) {
+            const doc = await db.collection("blaze_sessions").doc(sessionId).get()
+            return doc.data() as (StoredBlazeSession | undefined)
         }
     }
 }
