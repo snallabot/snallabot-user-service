@@ -34,3 +34,22 @@ export const SYSTEM_MAP = (a: string) => ({
     xbsx: `MADDEN_${a}_XBSX_BLZ_SERVER`,
     stadia: `MADDEN_${a}_SDA_BLZ_SERVER`,
 })
+
+export const SERVICE_MAP = ((a: string) => ({
+    xone: `madden-${a}-xone-gen4`,
+    ps4: `madden-${a}-ps4-gen4`,
+    pc: `madden-${a}-pc-gen5`,
+    ps5: `madden-${a}-ps5-gen5`,
+    xbsx: `madden-${a}-xbsx-gen5`,
+    stadia: `madden-${a}-stadia-gen5`,
+}))(YEAR)
+
+export const PRODUCT_MAP = ((a: string) => ({
+    xone: `madden-${a}-xone-mca`,
+    ps4: `madden-${a}-ps4-mca`,
+    pc: `madden-${a}-pc-mca`,
+    ps5: `madden-${a}-ps5-mca`,
+    xbsx: `madden-${a}-xbsx-mca`,
+    stadia: `madden-${a}-stadia-mca`,
+}))(YEAR)
+

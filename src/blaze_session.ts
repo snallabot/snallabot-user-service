@@ -1,6 +1,8 @@
 import getUserDB, { SessionId, SessionToken } from "./user_db"
-import { CLIENT_ID, CLIENT_SECRET, AUTH_SOURCE } from "./constants"
-import { AccountToken } from "./ea_types"
+import { CLIENT_ID, CLIENT_SECRET, AUTH_SOURCE, SERVICE_MAP, PRODUCT_MAP } from "./constants"
+import { AccountToken, BlazeAuthResponse } from "./ea_types"
+import { Agent } from "undici"
+import crypto from "crypto"
 
 const UserDB = getUserDB()
 
@@ -31,8 +33,48 @@ async function refreshToken(sessionId: SessionId): Promise<SessionToken> {
 }
 
 async function refreshBlazeSession(sessionId: SessionId): Promise<BlazeSessionInformation> {
+    const lastSession = await UserDB.retrieveSession(sessionId)
+    const lastBlazeSession = await UserDB.retrieveBlazeSession(sessionId)
+    if (lastBlazeSession) {
+    } else {
+        return null
+    }
+}
 
-    return undefined
+async function createBlazeSession(lastSession: SessionToken): Promise<> {
+    const { systemConsole } = await UserDB.retrievePersona(lastSession.personaId)
+    const blazeAuthenticationResponse = await fetch(
+        `https://wal2.tools.gos.bio-iad.ea.com/wal/authentication/login`,
+        {
+            // EA is on legacy SSL SMH LMAO ALSO
+            dispatcher: new Agent({
+                connect: {
+                    rejectUnauthorized: false,
+                    secureOptions: crypto.constants.SSL_OP_LEGACY_SERVER_CONNECT,
+                },
+            }),
+            method: "POST",
+            headers: {
+                "Accept-Charset": "UTF-8",
+                Accept: "application/json",
+                "X-BLAZE-ID": SERVICE_MAP[systemConsole],
+                "X-BLAZE-VOID-RESP": "XML",
+                "X-Application-Key": "MADDEN-MCA",
+                "Content-Type": "application/json",
+                "User-Agent":
+                    "Dalvik/2.1.0 (Linux; U; Android 13; sdk_gphone_x86_64 Build/TE1A.220922.031)",
+            },
+            body: JSON.stringify({
+                accessToken: lastSession.access_token,
+                productName: PRODUCT_MAP[systemConsole],
+            }),
+        },
+    )
+    if (!blazeAuthenticationResponse.ok) {
+        //Todo throw error
+    }
+    const { userLoginInfo: { sessionKey, blazeId } } = (await blazeAuthenticationResponse.json() as BlazeAuthResponse)
+    return await UserDB.saveBlazeSession(lastSession.sessionId, { sessionKey, blazeId })
 }
 
 

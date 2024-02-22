@@ -11,4 +11,6 @@ export type SystemConsole = "xone" | "xbsx" | "ps4" | "ps5" | "pc" | "stadia"
 export type Persona = { dateCreated: string; displayName: string; isVisible: boolean; lastAuthenticated: string; name: string; namespaceName: Namespace; personaId: number; pidId: number; showPersona: string; status: string; statusReasonCode: string }
 export type Personas = { personas: { persona: Array<Persona> } }
 
+export type BlazeAuthResponse = { isAnonymous: boolean; isOfLegalContactAge: boolean; isUnderage: false; userLoginInfo: { accoutId: number; blazeId: number; geoIpSucceeded: boolean; isFirstConsoleLogin: boolean; isFirstLogin: boolean; lastLoginDateTime: number; personaDetails: { displayName: string; extId: number; lastAuthenticated: 0; personaId: number; status: string }; platformIndo: { clientPlatform: SystemConsole, eaIds: { nucleusAccountId: number, originPersonaId: number, originPersonaName: string }; externalIds: { psnAccountId: number, steamAccountId: number, switchId: number, xb1AccountId: number } }; previousAnonymousAccountId: number, sessionKey: string } }
+
 

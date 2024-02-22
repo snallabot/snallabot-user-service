@@ -4,11 +4,12 @@ import { getFirestore } from "firebase-admin/firestore"
 import { randomUUID } from "crypto"
 import { UserDBError } from "./request_errors"
 
-export type SessionToken = AccountToken & { created_date: Date, last_accessed: Date, personaId: number }
-export type SavedPersona = Persona & { systemConsole: SystemConsole }
-export type BlazeSession = { sessionKey: string, blazeId: string }
-export type StoredBlazeSession = BlazeSession & { created_date: Date }
 export type SessionId = string
+export type SessionToken = AccountToken & { created_date: Date, last_accessed: Date, personaId: number, sessionId: SessionId }
+export type SavedPersona = Persona & { systemConsole: SystemConsole }
+export type BlazeSession = { sessionKey: string, blazeId: number }
+export type StoredBlazeSession = BlazeSession & { created_date: Date, sessionId: SessionId }
+
 
 interface UserDB {
     savePersona(persona: Persona, systemConsole: SystemConsole): Promise<void>;
@@ -60,11 +61,11 @@ const FirebaseUserDB: () => UserDB = () => {
         createSession: async function(persona: Persona, token: AccountToken) {
             const sessionId = randomUUID()
             const doc = db.collection("sessions").doc(sessionId)
-            const session = { ...token, personaId: persona.personaId, created_date: new Date(), last_accessed: new Date() }
+            const session = { ...token, personaId: persona.personaId, created_date: new Date(), last_accessed: new Date(), sessionId: sessionId }
             await doc.set(session)
             return sessionId
         },
-        retrieveSession: async function(sessionId: string) {
+        retrieveSession: async function(sessionId: SessionId) {
             const doc = await db.collection("sessions").doc(sessionId).get()
             const data = doc.data()
             if (!data) {
@@ -72,7 +73,7 @@ const FirebaseUserDB: () => UserDB = () => {
             }
             return data as SessionToken
         },
-        updateSession: async function(sessionId: string, refreshedToken: AccountToken) {
+        updateSession: async function(sessionId: SessionId, refreshedToken: AccountToken) {
             const doc = db.collection("sessions").doc(sessionId)
             const retrievedDoc = await doc.get()
             const data = retrievedDoc.data()
@@ -84,12 +85,12 @@ const FirebaseUserDB: () => UserDB = () => {
             doc.set(newSession)
             return newSession
         },
-        clearBlazeSession: async function(sessionId: string) {
+        clearBlazeSession: async function(sessionId: SessionId) {
             await db.collection("blaze_sessions").doc(sessionId).delete()
         },
-        saveBlazeSession: async function(sessionId: string, session: BlazeSession) {
+        saveBlazeSession: async function(sessionId: SessionId, session: BlazeSession) {
             const doc = db.collection("blaze_sessions").doc(sessionId)
-            const storedSession = { ...session, created_date: new Date() }
+            const storedSession = { ...session, created_date: new Date(), sessionId }
             doc.set(storedSession)
             return storedSession
         },
